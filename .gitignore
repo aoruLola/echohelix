@@ -1,0 +1,51 @@
+# General
+.DS_Store
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+*.log
+
+# Go
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+go.work
+go.work.sum
+
+# Node.js
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/gen_snapshot.out
+ios/Flutter/flutter_assets/
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+android/app/build/
+android/.gradle
+
+# EchoHelix Specific
+# Previously requested to be ignored, assuming large data or artifacts
+analysis/
+elix_app/
+
+# Agent
+.agent/
+brain/
