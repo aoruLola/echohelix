@@ -8,6 +8,7 @@ import (
 
 	"echohelix/bridge/internal/auth"
 	"echohelix/bridge/internal/config"
+	"echohelix/bridge/internal/dashboard"
 	"echohelix/bridge/internal/process"
 	"echohelix/bridge/internal/session"
 	"echohelix/bridge/internal/workspace"
@@ -18,13 +19,14 @@ import (
 )
 
 type Server struct {
-	router         *mux.Router
-	httpServer     *http.Server
-	processManager *process.Manager
-	authHandler    *auth.Handler
-	sessionMgr     *session.Manager
-	workspaceSvc   *workspace.Service
-	configSvc      *config.Service
+	router           *mux.Router
+	httpServer       *http.Server
+	processManager   *process.Manager
+	authHandler      *auth.Handler
+	sessionMgr       *session.Manager
+	workspaceSvc     *workspace.Service
+	configSvc        *config.Service
+	dashboardHandler *dashboard.Handler
 }
 
 func NewServer(pm *process.Manager) *Server {
@@ -51,13 +53,18 @@ func NewServer(pm *process.Manager) *Server {
 	// Initialize Config Service
 	configSvc := config.NewService(".env")
 
+	// Initialize Dashboard
+	dashboardLogger := dashboard.NewLogger(500)
+	dashboardHandler := dashboard.NewHandler(dashboardLogger, authService)
+
 	s := &Server{
-		router:         mux.NewRouter(),
-		processManager: pm,
-		authHandler:    authHandler,
-		sessionMgr:     sessionMgr,
-		workspaceSvc:   workspaceSvc,
-		configSvc:      configSvc,
+		router:           mux.NewRouter(),
+		processManager:   pm,
+		authHandler:      authHandler,
+		sessionMgr:       sessionMgr,
+		workspaceSvc:     workspaceSvc,
+		configSvc:        configSvc,
+		dashboardHandler: dashboardHandler,
 	}
 	s.setupRoutes()
 	return s
@@ -77,6 +84,11 @@ func (s *Server) setupRoutes() {
 	v2.HandleFunc("/auth/pair", s.authHandler.HandlePair).Methods("POST")
 	v2.HandleFunc("/auth/code", s.authHandler.HandleGenerateCode).Methods("POST")
 	v2.HandleFunc("/auth/status", s.authHandler.HandleStatus).Methods("GET")
+
+	// Dashboard (Public)
+	s.router.HandleFunc("/dashboard", s.dashboardHandler.HandleDashboard).Methods("GET")
+	s.router.HandleFunc("/dashboard/logs", s.dashboardHandler.HandleGetLogs).Methods("GET")
+	s.router.HandleFunc("/dashboard/pairing/refresh", s.dashboardHandler.HandleRefreshPairingCode).Methods("POST")
 
 	// Protected Routes Wrapper
 	protect := s.authHandler.AuthenticateMiddleware
