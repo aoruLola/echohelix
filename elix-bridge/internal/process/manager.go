@@ -24,50 +24,88 @@ func NewManager(workDir string) *Manager {
 	}
 }
 
-// Start launches the Gemini Core process
-// It tries to find the executable or falls back to 'npm start' for dev
-func (m *Manager) Start(port int) error {
-	serverPath := filepath.Join(m.WorkDir, "cores", "gemini", "packages", "a2a-server")
-
-	// Check if directory exists
-	if _, err := os.Stat(serverPath); os.IsNotExist(err) {
-		return fmt.Errorf("gemini core path not found: %s", serverPath)
-	}
-
-	log.Info().Str("path", serverPath).Int("port", port).Msg("Starting Gemini Core...")
-
-	// Construct command (Dev Mode: npm start)
-	// In production this should run the compiled binary
+// Start launches the AI Core process (gemini or aider)
+func (m *Manager) Start(kernel string, port int) error {
 	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("npm.cmd", "run", "start")
+	var serverPath string
+
+	if kernel == "aider" {
+		serverPath = filepath.Join(m.WorkDir, "cores", "aider")
+		log.Info().Str("kernel", "aider").Str("path", serverPath).Int("port", port).Msg("Starting Aider Core...")
+
+		// Check if server.py exists
+		if _, err := os.Stat(filepath.Join(serverPath, "server.py")); os.IsNotExist(err) {
+			return fmt.Errorf("aider server script not found at %s", serverPath)
+		}
+
+		// Run python server.py using venv
+		// We use the venv created in the cores/aider directory
+		if runtime.GOOS == "windows" {
+			pythonPath := filepath.Join(serverPath, ".venv", "Scripts", "python.exe")
+			// Fallback to system python if venv not found (though it should be there)
+			if _, err := os.Stat(pythonPath); err == nil {
+				cmd = exec.Command(pythonPath, "server.py")
+			} else {
+				log.Warn().Msg("Aider venv not found, falling back to system python")
+				cmd = exec.Command("python", "server.py")
+			}
+		} else {
+			pythonPath := filepath.Join(serverPath, ".venv", "bin", "python3")
+			if _, err := os.Stat(pythonPath); err == nil {
+				cmd = exec.Command(pythonPath, "server.py")
+			} else {
+				log.Warn().Msg("Aider venv not found, falling back to system python3")
+				cmd = exec.Command("python3", "server.py")
+			}
+		}
+		cmd.Dir = serverPath
+
+		// Inject Environment Variables
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, fmt.Sprintf("PORT=%d", port))
+		// PYTHONPATH might be needed if not set
+		cmd.Env = append(cmd.Env, "PYTHONPATH=.")
+
 	} else {
-		cmd = exec.Command("npm", "run", "start")
+		// Default to Gemini
+		serverPath = filepath.Join(m.WorkDir, "cores", "gemini", "packages", "a2a-server")
+
+		// Check if directory exists
+		if _, err := os.Stat(serverPath); os.IsNotExist(err) {
+			return fmt.Errorf("gemini core path not found: %s", serverPath)
+		}
+
+		log.Info().Str("kernel", "gemini").Str("path", serverPath).Int("port", port).Msg("Starting Gemini Core...")
+
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("npm.cmd", "run", "start")
+		} else {
+			cmd = exec.Command("npm", "run", "start")
+		}
+		cmd.Dir = serverPath
+
+		// Inject Environment Variables
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, fmt.Sprintf("PORT=%d", port))
+		// Pass CODER_AGENT_PORT for Gemini specifically as it uses it
+		cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_AGENT_PORT=%d", port))
 	}
 
-	cmd.Dir = serverPath
-
-	// Inject Environment Variables
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("PORT=%d", port))
-	// Critical: Force IPv4 binding if needed, though '0.0.0.0' in app.ts handles it
-	// cmd.Env = append(cmd.Env, "HOST=0.0.0.0")
-
-	// Pipe pipes
+	// Shared startup logic
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start gemini process: %w", err)
+		return fmt.Errorf("failed to start %s process: %w", kernel, err)
 	}
 
 	m.cmd = cmd
 
 	// Async Log Forwarding
-	go scanLog(stdout, "GEMINI_OUT")
-	go scanLog(stderr, "GEMINI_ERR")
+	go scanLog(stdout, fmt.Sprintf("%s_OUT", kernel))
+	go scanLog(stderr, fmt.Sprintf("%s_ERR", kernel))
 
-	log.Info().Int("pid", cmd.Process.Pid).Msg("Gemini Core Started")
+	log.Info().Str("kernel", kernel).Int("pid", cmd.Process.Pid).Msg("Core Started")
 	return nil
 }
 

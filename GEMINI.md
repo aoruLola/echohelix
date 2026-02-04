@@ -104,3 +104,19 @@ graph TD
     4.  Asks user: "Select your primary AI Engine".
     5.  Starts Bridge + Selected Kernel.
     6.  Displays QR Code for App pairing.
+
+## 6. 行动准则 (Strict Protocol)
+
+### 6.1 先计划 (Plan First)
+- **所有非原子操作**（如：引入新库、修改核心逻辑、跨文件重构）必须先提交计划。
+- 计划需包含：目的、涉及文件、风险评估。
+- **必须获得用户明确批准** ("Proceed", "批准") 后方可执行。
+
+### 6.2 后汇报 (Report Back)
+- 每次行动结束后，必须更新 `task.md` 或相关 report 文档。
+- 告知用户当前状态及下一步建议。
+
+### 6.3 例外 (Exceptions)
+- 简单的 Git 操作 (commit, log).
+- 启动/停止服务.
+- 只读操作 (ls, cat).
